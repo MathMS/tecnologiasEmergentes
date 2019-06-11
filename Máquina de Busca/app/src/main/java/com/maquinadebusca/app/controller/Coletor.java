@@ -1,91 +1,172 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package com.maquinadebusca.app.controller;
 
-/**
- *
- * @author Mathe
- */
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.util.List;
-import java.util.LinkedList;
-import java.net.URLConnection;
-import org.jsoup.Jsoup;
-import org.jsoup.Jsoup; 
-import org.jsoup.nodes.Document; 
-import org.jsoup.nodes.Element; 
-import org.jsoup.select.Elements; 
-import org.springframework.http.MediaType; 
-import org.springframework.web.bind.annotation.GetMapping; 
-import org.springframework.web.bind.annotation.RequestMapping; 
-import org.springframework.web.bind.annotation.RestController; 
-import com.maquinadebusca.app.model.Documento; 
- 
-@RestController 
-@RequestMapping ("/coletor") // URL: http://localhost:8080/coletor 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import com.maquinadebusca.app.mensagem.Mensagem;
+import com.maquinadebusca.app.model.Link;
+import com.maquinadebusca.app.model.UrlsSementes;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import com.maquinadebusca.app.model.service.ColetorService;
+import javax.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
+@RestController
+@RequestMapping ("/coletor") // URL: http://localhost:8080/coletor
 public class Coletor {
-     // URL: http://localhost:8080/coletor/iniciar
-    @GetMapping(value = "/iniciar", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public Documento iniciar() {
-        URL url;
-        Documento d = new Documento();
-        try{
-            url = new URL
-          ("http://journals.ecs.soton.ac.uk/java/tutorial/networking/urls/readingWriting.html"); 
-            Document doc = Jsoup.connect(url.toString()).get();
-            Elements links = doc.select("a[href]");
-            
-            d.setUrl(url);
-            d.setTexto(doc.html());
-            d.setVisao(doc.text());
-            
-            List<String> urls = new LinkedList();
-            for (Element link: links)
-                if((! link.attr("abs:href").equals("")&&(link.attr("abs:href") != null)))
-                    urls.add(link.attr("abs:href"));
-               d.setUrls(urls);
-                
-                System.out.println
-              ("\n\n\n=================================================");
-                 System.out.println (">>> URL:");
-                 System.out.println ("=================================================");
-                 System.out.println (d.getUrl()); 
 
-                 
-                 System.out.println
-              ("\n\n\n=================================================");
-                 System.out.println (">>> Página:");
-                 System.out.println ("=================================================");
-                 System.out.println (d.getTexto()); 
+  @Autowired
+  ColetorService cs;
 
-                 
-                 System.out.println
-              ("\n\n\n=================================================");
-                 System.out.println (">>> Visão:");
-                 System.out.println ("=================================================");
-                 System.out.println (d.getVisao()); 
+  // URL: http://localhost:8080/coletor/iniciar
+  @GetMapping (value = "/iniciar", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity iniciar () {
+    return new ResponseEntity (cs.executar (), HttpStatus.OK);
+  }
 
+  // URL: http://localhost:8080/coletor/documento
+  @GetMapping (value = "/documento", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarDocumento () {
+    return new ResponseEntity (cs.getDocumento (), HttpStatus.OK);
+  }
 
-                  System.out.println 
-              ("\n\n\n=================================================");
-                  System.out.println (">>> URLs:");
-                  System.out.println ("=================================================");
-                  urls = d.getUrls();
-                  for (String u:urls)         
-                      System.out.println(u);
-                  }catch (Exception e){
-                      System.out.println ("Erro ao coletar a página.");
-                      e.printStackTrace();  
-                  }
-        return d;
+  // Request for: http://localhost:8080/coletor/documento/{id}
+  @GetMapping (value = "/documento/{id}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarDocumento (@PathVariable (value = "id") Long id) {
+    return new ResponseEntity (cs.getDocumento (id), HttpStatus.OK);
+  }
+
+  // URL: http://localhost:8080/coletor/link
+  @GetMapping (value = "/link", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarLink () {
+    return new ResponseEntity (cs.getLink (), HttpStatus.OK);
+  }
+
+  // Request for: http://localhost:8080/coletor/link/{id}
+  @GetMapping (value = "/link/{id}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarLink (@PathVariable (value = "id") Long id) {
+    return new ResponseEntity (cs.getLink (id), HttpStatus.OK);
+  }
+
+  // Request for: http://localhost:8080/coletor/link
+  @PostMapping (value = "/link", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  @JsonDeserialize (using = LocalDateTimeDeserializer.class)
+  public ResponseEntity inserirLink (@RequestBody @Valid Link link, BindingResult resultado) {
+    ResponseEntity resposta = null;
+    if (resultado.hasErrors ()) {
+      resposta = new ResponseEntity (new Mensagem ("erro", "os dados sobre o link  não foram informados corretamente"), HttpStatus.BAD_REQUEST);
+    } else {
+      link = cs.salvarLink (link);
+      if ((link != null) && (link.getId () > 0)) {
+        resposta = new ResponseEntity (link, HttpStatus.OK);
+      } else {
+        resposta = new ResponseEntity (new Mensagem ("erro", "não foi possível inserir o link informado no banco de dados"), HttpStatus.INTERNAL_SERVER_ERROR);
+      }
     }
+    return resposta;
+  }
+
+  // Request for: http://localhost:8080/coletor/urlsSementes
+  @PostMapping (value = "/urlsSementes", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity inserirUrlsSementes (@RequestBody UrlsSementes urlsSementes) {
+    boolean erro = false;
+    ResponseEntity resposta = null;
+
+    for (String url : urlsSementes.getUrls ()) {
+      Link link = new Link ();
+      link.setUrl (url);
+      link = cs.salvarLink (link);
+      if ((link == null) || (link.getId () <= 0)) {
+        erro = true;
+        break;
+      }
+    }
+    if (erro == false) {
+      resposta = new ResponseEntity (new Mensagem ("sucesso", "as urls sementes informadas foram inseridas no banco de dados"), HttpStatus.OK);
+    } else {
+      resposta = new ResponseEntity (new Mensagem ("erro", "não foi possível inserir as urls sementes informadas no banco de dados"), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    return resposta;
+  }
+
+  // Request for: http://localhost:8080/coletor/link
+  @PutMapping (value = "/link", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity atualizarLink (@RequestBody @Valid Link link, BindingResult resultado) {
+    ResponseEntity resposta = null;
+    if (resultado.hasErrors ()) {
+      resposta = new ResponseEntity (new Mensagem ("erro", "os dados sobre o link  não foram informados corretamente"), HttpStatus.BAD_REQUEST);
+    } else {
+      link = cs.atualizarLink (link);
+      if ((link != null) && (link.getId () > 0)) {
+        resposta = new ResponseEntity (link, HttpStatus.OK);
+      } else {
+        resposta = new ResponseEntity (new Mensagem ("erro", "não foi possível atualizar o link informado no banco de dados"), HttpStatus.NOT_ACCEPTABLE);
+      }
+    }
+    return resposta;
+  }
+
+  // Request for: http://localhost:8080/coletor/link
+  @DeleteMapping (value = "/link", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity removerLink (@RequestBody @Valid Link link, BindingResult resultado) {
+    ResponseEntity resposta = null;
+    if (resultado.hasErrors ()) {
+      resposta = new ResponseEntity (new Mensagem ("erro", "os dados sobre o link  não foram informados corretamente"), HttpStatus.BAD_REQUEST);
+    } else {
+      link = cs.removerLink (link);
+      if (link != null) {
+        resposta = new ResponseEntity (new Mensagem ("sucesso", "link removido com suceso"), HttpStatus.OK);
+      } else {
+        resposta = new ResponseEntity (new Mensagem ("erro", "não foi possível remover o link informado no banco de dados"), HttpStatus.NOT_ACCEPTABLE);
+      }
+    }
+    return resposta;
+  }
+
+  // Request for: http://localhost:8080/coletor/link
+  @DeleteMapping (value = "/link/{id}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity removerLink (@PathVariable (value = "id") Long id) {
+    ResponseEntity resposta = null;
+    if ((id != null) && (id <= 0)) {
+      resposta = new ResponseEntity (new Mensagem ("erro", "os dados sobre o link  não foram informados corretamente"), HttpStatus.BAD_REQUEST);
+    } else {
+      boolean resp = cs.removerLink (id);
+      if (resp == true) {
+        resposta = new ResponseEntity (new Mensagem ("sucesso", "link removido com suceso"), HttpStatus.OK);
+      } else {
+        resposta = new ResponseEntity (new Mensagem ("erro", "não foi possível remover o link informado no banco de dados"), HttpStatus.NOT_ACCEPTABLE);
+      }
+    }
+    return resposta;
+  }
+
+  // Request for: http://localhost:8080/coletor/encontrar/{url}
+  @GetMapping (value = "/encontrar/{url}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity encontrarLink (@PathVariable (value = "url") String url) {
+    return new ResponseEntity (cs.encontrarLinkUrl (url), HttpStatus.OK);
+  }
+
+  // Request for: http://localhost:8080/coletor/link/ordemAlfabetica
+  @GetMapping (value = "/link/ordemAlfabetica", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarEmOrdemAlfabetica () {
+    return new ResponseEntity (cs.listarEmOrdemAlfabetica (), HttpStatus.OK);
+  }
+
+  // Request for: http://localhost:8080/coletor/link/pagina
+  @GetMapping (value = "/link/pagina", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+  public ResponseEntity listarPagina () {
+    return new ResponseEntity (cs.buscarPagina (), HttpStatus.OK);
+  }
+  
 }
-    
